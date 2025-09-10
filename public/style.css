@@ -1,0 +1,27 @@
+/* style.css */
+.scroller {
+  max-width: 100%;
+  overflow: hidden;
+}
+
+.scroller__inner {
+  display: flex;
+  flex-wrap: nowrap;
+  /* アニメーションを定義 */
+  animation: scroll 60s linear infinite;
+}
+
+.scroller__inner img {
+  height: 150px; /* 高さを揃える */
+  margin-right: 20px;
+}
+
+/* アニメーションの定義 */
+@keyframes scroll {
+  from {
+    transform: translateX(0);
+  }
+  to {
+    transform: translateX(-50%); /* コンテナ幅の半分だけ移動 */
+  }
+}
