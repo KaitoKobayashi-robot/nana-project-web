@@ -1,19 +1,36 @@
-/* style.css */
+body {
+  font-family: sans-serif;
+  background-color: #f0f2f5;
+  margin: 0;
+  padding: 2rem;
+}
+
+h1 {
+  text-align: center;
+  color: #333;
+}
+
+/* スクロールエリアのコンテナ */
 .scroller {
-  max-width: 100%;
-  overflow: hidden;
+  width: 100%;
+  overflow: hidden; /* はみ出した画像を隠す */
+  -webkit-mask: linear-gradient(
+    90deg,
+    transparent,
+    white 20%,
+    white 80%,
+    transparent
+  ); /* 両端を自然にフェードアウトさせる */
+  mask: linear-gradient(90deg, transparent, white 20%, white 80%, transparent);
 }
 
-.scroller__inner {
-  display: flex;
-  flex-wrap: nowrap;
-  /* アニメーションを定義 */
+/* 画像全体をラップし、アニメーションを適用する要素 */
+.scroller-inner {
+  display: flex; /* 画像を横並びにする */
+  gap: 1rem; /* 画像間のスペース */
+  padding-block: 1rem;
+  /* アニメーションを適用: アニメーション名 時間 速度 無限ループ */
   animation: scroll 60s linear infinite;
-}
-
-.scroller__inner img {
-  height: 150px; /* 高さを揃える */
-  margin-right: 20px;
 }
 
 /* アニメーションの定義 */
@@ -22,6 +39,19 @@
     transform: translateX(0);
   }
   to {
-    transform: translateX(-50%); /* コンテナ幅の半分だけ移動 */
+    /*
+         * -50%動かすのがポイント。
+         * 画像セットを2つ並べているため、ちょうど1セット分が
+         * 左に移動した時点で瞬時に先頭に戻り、ループして見える。
+         */
+    transform: translateX(-50%);
   }
+}
+
+/* 画像のスタイル */
+.scroller-inner img {
+  height: 160px; /* 高さを揃える */
+  width: auto;
+  border-radius: 8px;
+  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.1);
 }

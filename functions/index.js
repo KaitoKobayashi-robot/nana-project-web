@@ -6,34 +6,42 @@
  *
  * See a full list of supported triggers at https://firebase.google.com/docs/functions
  */
-
-const {setGlobalOptions} = require("firebase-functions");
+const { setGlobalOptions } = require("firebase-functions");
 const functions = require("firebase-functions");
-const {getStorage} = require("firebase-admin/storage");
-const {initializeApp} = require("firebase-admin/app");
-
-initializeApp();
+const admin = require("firebase-admin");
+admin.initializeApp();
 
 exports.getImageUrls = functions.https.onCall(async (data, context) => {
-  const bucket = getStorage().bucket();
-  const [files] = await bucket.getFiles({prefix: "user_images/"});
+  const bucket = admin.storage().bucket();
+  const folder = "user_images/";
 
-  const urls = await Promise.all(
-      files.map(async (file) => {
-        if (file.name.endsWith("/")) {
-          return null;
-        }
-        const options = {
-          version: "v4",
-          action: "read",
-          expires: Date.now() + 15 * 60 * 1000, // 15 minutes
-        };
-        const [url] = await file.getSignedUrl(options);
-        return url;
-      }),
-  );
+  const expirationDate = new Date();
+  // Set expiration to 1 month from now
+  expirationDate.setMonth(expirationDate.getMonth() + 1);
 
-  return urls.filter((url) => url !== null);
+  const config = { action: "read", expires: expirationDate };
+
+  try {
+    const [files] = await bucket.getFiles({ prefix: folder });
+    const imageFiles = files.filter(file => !file.name.endsWith("/"));
+    if (imageFiles.length === 0) {
+      console.log("No image files found in the specified folder.");
+      return [];
+    }
+
+    const urlPromises = imageFiles.map(file => file.getSignedUrl(config));
+    const signnedUrls = await Promise.all(urlPromises);
+    const imageUrls = signnedUrls.map(urlArray => urlArray[0]);
+    console.log("Retrieved image URLs:", imageUrls);
+    return imageUrls;
+  } catch (error) {
+    console.error("Error retrieving image URLs:", error);
+    throw new functions.https.HttpsError(
+      "internal",
+      "Cannot get image URL",
+      error
+    );
+  }
 });
 
 // For cost control, you can set the maximum number of containers that can be
@@ -46,7 +54,7 @@ exports.getImageUrls = functions.https.onCall(async (data, context) => {
 // functions should each use functions.runWith({ maxInstances: 10 }) instead.
 // In the v1 API, each function can only serve one request per container, so
 // this will be the maximum concurrent request count.
-setGlobalOptions({maxInstances: 10});
+setGlobalOptions({ maxInstances: 10 });
 
 // Create and deploy your first functions
 // https://firebase.google.com/docs/functions/get-started
