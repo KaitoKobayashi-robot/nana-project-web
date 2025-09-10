@@ -20,16 +20,20 @@ exports.getImageUrls = functions.https.onCall(async (data, context) => {
 
   const urls = await Promise.all(
       files.map(async (file) => {
+        if (file.name.endsWith("/")) {
+          return null;
+        }
         const options = {
           version: "v4",
           action: "read",
+          expires: Date.now() + 15 * 60 * 1000, // 15 minutes
         };
         const [url] = await file.getSignedUrl(options);
         return url;
       }),
   );
 
-  return urls.filter((url) => !url.includes("user_images%2F"));
+  return urls.filter((url) => url !== null);
 });
 
 // For cost control, you can set the maximum number of containers that can be

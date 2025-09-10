@@ -5,9 +5,9 @@ document.addEventListener("DOMContentLoaded", async () => {
     const result = await getImageUrls();
     const urls = result.data;
 
-    const scrollerInner = document.querySelector(".scroller-inner");
+    const scrollerInner = document.querySelector(".scroller__inner");
 
-    const imageElements = [...urls, ...urls].map((url) => {
+    const imageElements = [...urls, ...urls].map(url => {
       const img = document.createElement("img");
       img.src = url;
       return img;
