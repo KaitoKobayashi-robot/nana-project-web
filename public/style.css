@@ -50,7 +50,7 @@ h1 {
 
 /* 画像のスタイル */
 .scroller-inner img {
-  height: 160px; /* 高さを揃える */
+  height: 500px; /* 高さを揃える */
   width: auto;
   border-radius: 8px;
   box-shadow: 0 4px 12px rgba(0, 0, 0, 0.1);
