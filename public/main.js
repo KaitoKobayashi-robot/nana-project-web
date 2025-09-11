@@ -19,7 +19,10 @@ const functions = getFunctions(app);
 
 const getImageUrls = httpsCallable(functions, "getImageUrls");
 
+const scroller = document.querySelector(".scroller");
 const scrollerInner = document.querySelector(".scroller-inner");
+
+const animationSecond = 10;
 
 async function initializeImageScroller() {
   console.log("Getting Image URLs...");
@@ -34,17 +37,52 @@ async function initializeImageScroller() {
     }
 
     console.log(`Success!!: ${imageUrls.length} images`);
+    scrollerInner.innerHTML = "";
 
-    const imagesToDisplay = [...imageUrls, ...imageUrls];
-
-    const fragment = document.createDocumentFragment();
-    imagesToDisplay.forEach(url => {
+    const originalFragment = document.createDocumentFragment();
+    const imageElements = imageUrls.map(url => {
       const img = document.createElement("img");
       img.src = url;
-      img.alt = "gallary image";
-      fragment.appendChild(img);
+      img.alt = "gallery image";
+      originalFragment.appendChild(img);
+      return img;
     });
-    scrollerInner.appendChild(fragment);
+
+    scrollerInner.appendChild(originalFragment);
+
+    const promises = imageElements.map(
+      img => new Promise(resolve => (img.onload = resolve))
+    );
+    await Promise.all(promises);
+
+    while (scrollerInner.scrollWidth < scroller.clientWidth) {
+      console.log("Content is narrower than scroller. Duplicationg...");
+      const fragment = document.createDocumentFragment();
+      const newImageElements = imageUrls.map(url => {
+        const img = document.createElement("img");
+        img.src = url;
+        img.alt = "gallery image";
+        fragment.appendChild(img);
+        return img;
+      });
+
+      const newPromises = newImageElements.map(
+        img => new Promise(resolve => (img.onload = resolve))
+      );
+
+      scrollerInner.appendChild(fragment);
+
+      await Promise.all(newPromises);
+    }
+
+    const currentImages = Array.from(scrollerInner.children);
+    currentImages.forEach(img => {
+      scrollerInner.appendChild(img.cloneNode(true));
+    });
+
+    const finalImageCount = scrollerInner.children.length / 2;
+    const animationDuration = finalImageCount * animationSecond;
+    scrollerInner.style.animationDuration = `${animationDuration}s`;
   } catch (error) {
     console.error("Error: Cannot get Image URLs", error);
     scrollerInner.textContent = "False get Images";

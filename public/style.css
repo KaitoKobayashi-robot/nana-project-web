@@ -1,13 +1,22 @@
 body {
+  overflow: hidden;
   font-family: sans-serif;
-  background-color: #f0f2f5;
+  background-color: white;
   margin: 0;
   padding: 2rem;
+  min-height: 100vh;
+  display: flex;
+  align-items: center;
+  justify-content: center;
 }
 
 h1 {
   text-align: center;
   color: #333;
+}
+
+.container {
+  width: 100%;
 }
 
 /* スクロールエリアのコンテナ */
@@ -26,11 +35,12 @@ h1 {
 
 /* 画像全体をラップし、アニメーションを適用する要素 */
 .scroller-inner {
+  width: max-content;
   display: flex; /* 画像を横並びにする */
   gap: 1rem; /* 画像間のスペース */
   padding-block: 1rem;
   /* アニメーションを適用: アニメーション名 時間 速度 無限ループ */
-  animation: scroll 60s linear infinite;
+  animation: scroll infinite linear;
 }
 
 /* アニメーションの定義 */
