@@ -21,6 +21,7 @@ console.log("Get storage: ", bucket);
 
 exports.getImageUrls = functions.https.onCall(async (data, context) => {
   const folder = "user_images/";
+  const sampleFolder = "sample_images/";
 
   const expirationDate = new Date();
   // Set expiration to 1 month from now
@@ -29,7 +30,7 @@ exports.getImageUrls = functions.https.onCall(async (data, context) => {
   const config = { action: "read", expires: expirationDate };
 
   try {
-    const [files] = await bucket.getFiles({ prefix: folder });
+    const [files] = await bucket.getFiles({ prefix: sampleFolder });
     const imageFiles = files.filter(file => !file.name.endsWith("/"));
     if (imageFiles.length === 0) {
       console.log("No image files found in the specified folder.");
