@@ -9,10 +9,17 @@
 const { setGlobalOptions } = require("firebase-functions");
 const functions = require("firebase-functions");
 const admin = require("firebase-admin");
-admin.initializeApp();
+const BUCKET_NAME = "nana-project-firebase.firebasestorage.app";
+
+admin.initializeApp({
+  storageBucket: BUCKET_NAME,
+});
+
+const bucket = admin.storage().bucket();
+
+console.log("Get storage: ", bucket);
 
 exports.getImageUrls = functions.https.onCall(async (data, context) => {
-  const bucket = admin.storage().bucket();
   const folder = "user_images/";
 
   const expirationDate = new Date();
