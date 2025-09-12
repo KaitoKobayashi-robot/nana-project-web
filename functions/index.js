@@ -1,6 +1,9 @@
 // v2 を v2 のパスで import
 const { onCall, HttpsError } = require("firebase-functions/v2/https");
-const { onObjectFinalized } = require("firebase-functions/v2/storage");
+const {
+  onObjectFinalized,
+  onObjectDeleted,
+} = require("firebase-functions/v2/storage");
 const { setGlobalOptions, logger } = require("firebase-functions/v2");
 
 // Admin を import
@@ -75,6 +78,22 @@ exports.onImageUpload = onObjectFinalized(async event => {
     logger.info(`Updated Firestore for ${filePath}`);
   } catch (e) {
     logger.error("onImageUpload failed", e);
+    throw e;
+  }
+});
+
+// ========== Storage → Firestore 反映（delete時）==========
+exports.onImageDelete = onObjectDeleted(async event => {
+  try {
+    const filePath = event.data.name || "";
+    if (!filePath.startsWith(FOLDER) || filePath.endsWith("/")) return;
+
+    const id = filePath.replace(/\//g, "_");
+    await admin.firestore().collection("images").doc(id).delete();
+
+    logger.info(`Deleted document from Firestore for ${filePath}`);
+  } catch (e) {
+    logger.error("onImageDelete failed", e);
     throw e;
   }
 });
