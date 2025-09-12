@@ -56,6 +56,7 @@ if (isLocal) {
 const loader = document.querySelector(".loader");
 const scroller = document.querySelector(".scroller");
 const scrollerInner = document.querySelector(".scroller-inner");
+let latestImageId = null;
 
 const animationSecond = 10;
 
@@ -67,7 +68,7 @@ function hideLoader() {
   loader.classList.add("hidden");
 }
 
-const q = query(collection(db, "images"), orderBy("updatedAt"));
+const q = query(collection(db, "images"), orderBy("updatedAt", "desc"));
 
 // async function loadInitialImages() {
 //   console.log("Loading initial images...");
@@ -106,6 +107,10 @@ async function startListeningForChanges() {
     async snapshot => {
       showLoader();
       console.log("Firestore change detected. Showing loader.");
+
+      if (snapshot.docs.length > 0) {
+        latestImageId = snapshot.docs[0].id;
+      }
 
       const changes = snapshot.docChanges();
       await Promise.all(
@@ -197,6 +202,15 @@ async function updateAnimation() {
   currentImagesSet.forEach(img => {
     scrollerInner.appendChild(img.cloneNode(true));
   });
+
+  currentImagesSet.forEach(img => img.classList.remove("highlight"));
+
+  if (latestImageId) {
+    const imagesToHighlight = scrollerInner.querySelectorAll(
+      `[data-id="${latestImageId}"]`
+    );
+    imagesToHighlight.forEach(img => img.classList.add("highlight"));
+  }
 
   const finalImageCount = scrollerInner.children.length / 2;
   const animationDuration = finalImageCount * animationSecond;
