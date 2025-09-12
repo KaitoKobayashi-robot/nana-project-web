@@ -102,8 +102,6 @@ exports.onImageDelete = onObjectDeleted(async event => {
 // 本番StorageのFOLDERを走査して Firestore を同期
 exports.synchronizeStorageAndFirestore = onCall(async req => {
   try {
-    // プレフィックス列挙はここ（ハンドラ内）で行う：トップレベルでは絶対にしない
-
     const [files] = await bucket.getFiles({ prefix: FOLDER });
 
     console.log("Get file:", files);
