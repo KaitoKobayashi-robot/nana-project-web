@@ -8,5 +8,8 @@ service firebase.storage {
     match /user_images/{allPath=**} {
       allow read, write;
     }
+    match /sample_images/{allPath=**} {
+      allow read, write;
+    }
   }
 }
