@@ -1,25 +1,32 @@
-// functions/index.js  —— 最小＆安全版（CommonJS）
-
-// ❶ v2 を v2 のパスで import
+// v2 を v2 のパスで import
 const { onCall, HttpsError } = require("firebase-functions/v2/https");
 const { onObjectFinalized } = require("firebase-functions/v2/storage");
 const { setGlobalOptions, logger } = require("firebase-functions/v2");
 
-// ❷ Admin 初期化（軽い処理のみ。重いIOは絶対に書かない）
+// Admin を import
 const admin = require("firebase-admin");
+
+// バケットの名前と参照するフォルダを定義
 const BUCKET_NAME = "nana-project-firebase.firebasestorage.app";
+const SAMPLE_FOLDER = "sample_images/"; // テスト用のフォルダ
+const USER_FOLDER = "user_images/"; // ユーザのフォルダ
+const FOLDER = SAMPLE_FOLDER; // フォルダを選択
+
+//サービスアカウントキーを読み込む
 const serviceAccountKey = require("./serviceAccountKey.json");
 
+// admin 初期化
 admin.initializeApp({
   credential: admin.credential.cert(serviceAccountKey),
   storageBucket: BUCKET_NAME,
 });
 
+// バケットを作成
 const bucket = admin.storage().bucket();
 
-console.log("Get Bucket: ", bucket);
+// console.log("Get Bucket: ", bucket);
 
-// ❸ v2 の setGlobalOptions を使う（region/timeout/memoryなど）
+// setGlobalOptions を使う（region/timeout/memoryなど）
 setGlobalOptions({
   region: "us-central1",
   timeoutSeconds: 60,
@@ -44,8 +51,7 @@ async function ensureDownloadToken(file) {
 exports.onImageUpload = onObjectFinalized(async event => {
   try {
     const filePath = event.data.name || "";
-    if (!filePath.startsWith("sample_images/") || filePath.endsWith("/"))
-      return;
+    if (!filePath.startsWith(FOLDER) || filePath.endsWith("/")) return;
 
     const file = bucket.file(filePath);
 
@@ -74,12 +80,12 @@ exports.onImageUpload = onObjectFinalized(async event => {
 });
 
 // ========== 手動同期（callable） ==========
-// 本番Storageの sample_images/ を走査して Firestore を同期
+// 本番StorageのFOLDERを走査して Firestore を同期
 exports.synchronizeStorageAndFirestore = onCall(async req => {
   try {
     // プレフィックス列挙はここ（ハンドラ内）で行う：トップレベルでは絶対にしない
 
-    const [files] = await bucket.getFiles({ prefix: "sample_images/" });
+    const [files] = await bucket.getFiles({ prefix: FOLDER });
 
     console.log("Get file:", files);
 
