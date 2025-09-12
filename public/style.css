@@ -69,6 +69,7 @@ h1 {
     transparent
   ); /* 両端を自然にフェードアウトさせる */
   mask: linear-gradient(90deg, transparent, white 20%, white 80%, transparent);
+  padding-block: 2rem;
 }
 
 /* 画像全体をラップし、アニメーションを適用する要素 */
@@ -107,5 +108,6 @@ h1 {
 
 .scroller-inner img.highlight {
   transform: scale(1.05); /* 少しだけ拡大 */
-  box-shadow: 0 0 25px 10px gold; /* 金色の光彩を追加 */
+  box-shadow: 0 0 25px 10px rgba(255, 217, 0, 0.5); /* 金色の光彩を追加 */
+  margin-inline: 1rem;
 }

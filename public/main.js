@@ -148,9 +148,9 @@ function addImageToScroller(url, id) {
 }
 
 function removeImageFromScroller(id) {
-  const imgToRemove = scrollerInner.querySelector(`[data-id="${id}"]`);
+  const imgToRemove = scrollerInner.querySelectorAll(`[data-id="${id}"]`);
   if (imgToRemove) {
-    imgToRemove.remove();
+    imgToRemove.forEach(img => img.remove());
   }
 }
 
