@@ -1,73 +1,140 @@
-/**
- * Import function triggers from their respective submodules:
- *
- * const {onCall} = require("firebase-functions/v2/https");
- * const {onDocumentWritten} = require("firebase-functions/v2/firestore");
- *
- * See a full list of supported triggers at https://firebase.google.com/docs/functions
- */
-const { setGlobalOptions } = require("firebase-functions");
-const functions = require("firebase-functions");
+// functions/index.js  —— 最小＆安全版（CommonJS）
+
+// ❶ v2 を v2 のパスで import
+const { onCall, HttpsError } = require("firebase-functions/v2/https");
+const { onObjectFinalized } = require("firebase-functions/v2/storage");
+const { setGlobalOptions, logger } = require("firebase-functions/v2");
+
+// ❷ Admin 初期化（軽い処理のみ。重いIOは絶対に書かない）
 const admin = require("firebase-admin");
 const BUCKET_NAME = "nana-project-firebase.firebasestorage.app";
+const serviceAccountKey = require("./serviceAccountKey.json");
 
 admin.initializeApp({
+  credential: admin.credential.cert(serviceAccountKey),
   storageBucket: BUCKET_NAME,
 });
 
 const bucket = admin.storage().bucket();
 
-console.log("Get storage: ", bucket);
+console.log("Get Bucket: ", bucket);
 
-exports.getImageUrls = functions.https.onCall(async (data, context) => {
-  const folder = "user_images/";
-  const sampleFolder = "sample_images/";
+// ❸ v2 の setGlobalOptions を使う（region/timeout/memoryなど）
+setGlobalOptions({
+  region: "us-central1",
+  timeoutSeconds: 60,
+  memory: "256MiB",
+  maxInstances: 5,
+});
 
-  const expirationDate = new Date();
-  // Set expiration to 1 month from now
-  expirationDate.setMonth(expirationDate.getMonth() + 1);
+const { v4: uuidv4 } = require("uuid");
+async function ensureDownloadToken(file) {
+  const [md] = await file.getMetadata();
+  const existing = md.metadata?.firebaseStorageDownloadTokens;
+  if (existing && String(existing).trim().length) return existing;
+  const token = uuidv4();
+  await file.setMetadata({
+    metadata: { firebaseStorageDownloadTokens: token },
+    cacheControl: "public,max-age=325360000,immutable",
+  });
+  return token;
+}
 
-  const config = { action: "read", expires: expirationDate };
-
+// ========== Storage → Firestore 反映（upload時） ==========
+exports.onImageUpload = onObjectFinalized(async event => {
   try {
-    const [files] = await bucket.getFiles({ prefix: sampleFolder });
-    const imageFiles = files.filter(file => !file.name.endsWith("/"));
-    if (imageFiles.length === 0) {
-      console.log("No image files found in the specified folder.");
-      return [];
-    }
+    const filePath = event.data.name || "";
+    if (!filePath.startsWith("sample_images/") || filePath.endsWith("/"))
+      return;
 
-    const urlPromises = imageFiles.map(file => file.getSignedUrl(config));
-    const signnedUrls = await Promise.all(urlPromises);
-    const imageUrls = signnedUrls.map(urlArray => urlArray[0]);
-    console.log("Retrieved image URLs:", imageUrls);
-    return imageUrls;
-  } catch (error) {
-    console.error("Error retrieving image URLs:", error);
-    throw new functions.https.HttpsError(
-      "internal",
-      "Cannot get image URL",
-      error
+    const file = bucket.file(filePath);
+
+    // 署名URLは「必要になってから生成」。ここは1枚分だけなのでOK
+    // const [signedUrl] = await file.getSignedUrl({
+    //   action: "read",
+    //   expires: Date.now() + 365 * 24 * 60 * 60 * 1000, // 1年
+    // });
+    await ensureDownloadToken(file);
+
+    const id = filePath.replace(/\//g, "_");
+    await admin.firestore().collection("images").doc(id).set(
+      {
+        path: filePath,
+        // url: signedUrl,
+        updatedAt: admin.firestore.FieldValue.serverTimestamp(),
+      },
+      { merge: true }
     );
+
+    logger.info(`Updated Firestore for ${filePath}`);
+  } catch (e) {
+    logger.error("onImageUpload failed", e);
+    throw e;
   }
 });
 
-// For cost control, you can set the maximum number of containers that can be
-// running at the same time. This helps mitigate the impact of unexpected
-// traffic spikes by instead downgrading performance. This limit is a
-// per-function limit. You can override the limit for each function using the
-// `maxInstances` option in the function's options, e.g.
-// `onRequest({ maxInstances: 5 }, (req, res) => { ... })`.
-// NOTE: setGlobalOptions does not apply to functions using the v1 API. V1
-// functions should each use functions.runWith({ maxInstances: 10 }) instead.
-// In the v1 API, each function can only serve one request per container, so
-// this will be the maximum concurrent request count.
-setGlobalOptions({ maxInstances: 10 });
+// ========== 手動同期（callable） ==========
+// 本番Storageの sample_images/ を走査して Firestore を同期
+exports.synchronizeStorageAndFirestore = onCall(async req => {
+  try {
+    // プレフィックス列挙はここ（ハンドラ内）で行う：トップレベルでは絶対にしない
 
-// Create and deploy your first functions
-// https://firebase.google.com/docs/functions/get-started
+    const [files] = await bucket.getFiles({ prefix: "sample_images/" });
 
-// exports.helloWorld = onRequest((request, response) => {
-//   logger.info("Hello logs!", {structuredData: true});
-//   response.send("Hello from Firebase!");
-// });
+    console.log("Get file:", files);
+
+    const db = admin.firestore();
+    const col = db.collection("images");
+    const batch = db.batch();
+    const seen = new Set();
+
+    let added = 0;
+
+    for (const f of files) {
+      if (f.name.endsWith("/")) continue;
+      const docId = f.name.replace(/\//g, "_");
+      seen.add(docId);
+
+      // 既存docを読むのは避け、直接 upsert（高速）
+      // const [url] = await f.getSignedUrl({
+      //   action: "read",
+      //   expires: Date.now() + 365 * 24 * 60 * 60 * 1000,
+      // });
+
+      await ensureDownloadToken(f);
+
+      batch.set(
+        col.doc(docId),
+        {
+          path: f.name,
+          // url,
+          updatedAt: admin.firestore.FieldValue.serverTimestamp(),
+        },
+        { merge: true }
+      );
+      admin.firestore.FieldValue.serverTimestamp();
+      added++;
+    }
+
+    // 余剰docの削除
+    const snap = await col.get();
+    let deleted = 0;
+    snap.forEach(doc => {
+      if (!seen.has(doc.id)) {
+        batch.delete(doc.ref);
+        deleted++;
+      }
+    });
+
+    await batch.commit();
+    return {
+      message: `OK: added=${added}, deleted=${deleted}`,
+      added,
+      deleted,
+    };
+  } catch (error) {
+    logger.error("synchronizeStorageAndFirestore failed", error);
+    // v2 の HttpsError で返す
+    throw new HttpsError("internal", String(error?.message || error));
+  }
+});
