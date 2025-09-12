@@ -53,10 +53,19 @@ if (isLocal) {
 
 // const getImageUrls = httpsCallable(functions, "getImageUrls");
 
+const loader = document.querySelector(".loader");
 const scroller = document.querySelector(".scroller");
 const scrollerInner = document.querySelector(".scroller-inner");
 
 const animationSecond = 10;
+
+function showLoader() {
+  loader.classList.remove("hidden");
+}
+
+function hideLoader() {
+  loader.classList.add("hidden");
+}
 
 const q = query(collection(db, "images"), orderBy("updatedAt"));
 
@@ -94,24 +103,33 @@ async function addImageByDoc(docData, id) {
 async function startListeningForChanges() {
   onSnapshot(
     q,
-    snapshot => {
-      snapshot.docChanges().forEach(change => {
-        const docData = change.doc.data();
-        console.log("Firestore change detected: ", change.type, docData);
+    async snapshot => {
+      showLoader();
+      console.log("Firestore change detected. Showing loader.");
 
-        if (change.type === "added") {
-          if (!document.querySelector(`[data-id="${change.doc.id}"]`)) {
-            addImageByDoc(docData, change.doc.id);
+      const changes = snapshot.docChanges();
+      await Promise.all(
+        changes.map(async change => {
+          const docData = change.doc.data();
+          console.log("Firestore change detected: ", change.type, docData);
+
+          if (change.type === "added") {
+            if (!document.querySelector(`[data-id="${change.doc.id}"]`)) {
+              await addImageByDoc(docData, change.doc.id);
+            }
           }
-        }
-        if (change.type === "removed") {
-          removeImageFromeScroller(change.doc.id);
-        }
-      });
-      updateAnimation();
+          if (change.type === "removed") {
+            removeImageFromScroller(change.doc.id);
+          }
+        })
+      );
+
+      await updateAnimation();
+      console.log("Animation updated. Hiding loader.");
     },
     error => {
       console.error("Error listening to Firestore: ", error);
+      hideLoader();
     }
   );
 }
@@ -124,7 +142,7 @@ function addImageToScroller(url, id) {
   scrollerInner.appendChild(img);
 }
 
-function removeImageFromeScroller(id) {
+function removeImageFromScroller(id) {
   const imgToRemove = scrollerInner.querySelector(`[data-id="${id}"]`);
   if (imgToRemove) {
     imgToRemove.remove();
@@ -132,24 +150,64 @@ function removeImageFromeScroller(id) {
 }
 
 async function updateAnimation() {
-  const currentImages = Array.from(scrollerInner.children);
-  if (currentImages.length === 0) {
+  const allImagesInDom = Array.from(scrollerInner.children);
+
+  await Promise.all(
+    allImagesInDom
+      .filter(img => !img.complete)
+      .map(
+        img =>
+          new Promise(resolve => {
+            img.onload = img.onerror = resolve;
+          })
+      )
+  );
+
+  const originalImages = [];
+  const seenIds = new Set();
+  allImagesInDom.forEach(img => {
+    if (!seenIds.has(img.dataset.id)) {
+      originalImages.push(img);
+      seenIds.add(img.dataset.id);
+    }
+  });
+
+  if (originalImages.length === 0) {
     scrollerInner.style.animation = "none";
+    scrollerInner.innerHTML = "";
     return;
   }
+
+  scrollerInner.innerHTML = "";
+  originalImages.forEach(img => scrollerInner.appendChild(img));
+
   while (scrollerInner.scrollWidth < scroller.clientWidth) {
-    currentImages.forEach(img => {
+    originalImages.forEach(img => {
       scrollerInner.appendChild(img.cloneNode(true));
     });
+    if (scrollerInner.children.length > originalImages.length * 20) {
+      console.warn(
+        "Image duplication has been STOPPED !!! ( the possibility of an infinite loop )"
+      );
+      break;
+    }
   }
+
+  const currentImagesSet = Array.from(scrollerInner.children);
+  currentImagesSet.forEach(img => {
+    scrollerInner.appendChild(img.cloneNode(true));
+  });
 
   const finalImageCount = scrollerInner.children.length / 2;
   const animationDuration = finalImageCount * animationSecond;
-  scrollerInner.style.animationDuration = `${animationDuration}s`;
+  scrollerInner.style.animation = `scroll ${animationDuration}s infinite linear`;
+
+  hideLoader();
 }
 
 const synchronize = httpsCallable(functions, "synchronizeStorageAndFirestore");
 async function runSynchronization() {
+  showLoader();
   console.log("Requesting synchronization...");
   try {
     const result = await synchronize();
