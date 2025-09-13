@@ -1,3 +1,4 @@
+// モジュールのインポート
 import { initializeApp } from "https://www.gstatic.com/firebasejs/12.2.1/firebase-app.js";
 import {
   getFunctions,
@@ -19,6 +20,7 @@ import {
   getDownloadURL,
 } from "https://www.gstatic.com/firebasejs/12.2.1/firebase-storage.js";
 
+// firebaseの設定
 const firebaseConfig = {
   apiKey: "AIzaSyBS_S8Tfa_nNqH5TtrooC9EY4Be1qapIAk",
   authDomain: "nana-project-firebase.firebaseapp.com",
@@ -30,11 +32,13 @@ const firebaseConfig = {
 };
 console.log("main.js script started!");
 
+// firebase, functions, firestore, storage の初期化
 const app = initializeApp(firebaseConfig);
 const functions = getFunctions(app, "us-central1");
 const db = getFirestore(app);
 const storage = getStorage(app);
 
+// hosting がローカルかどうかを判定
 const isLocal =
   location.hostname === "localhost" ||
   location.hostname === "127.0.0.1" ||
@@ -46,48 +50,29 @@ if (isLocal) {
   console.log("Connecting to Firestore Emulator...");
   connectFirestoreEmulator(db, "127.0.0.1", 8080);
 }
-// if (location.hostname === "localhost") {
-//   console.log("Connectiong to Firestore Emulator...");
-//   connectFirestoreEmulator(db, "localhost", 8080);
-// }
 
-// const getImageUrls = httpsCallable(functions, "getImageUrls");
+// グローバル変数を定義
+const loader = document.querySelector(".loader"); // 画像変更時のインジケータ
+const scroller = document.querySelector(".scroller"); // スクロール
+const scrollerInner = document.querySelector(".scroller-inner"); // スクロールの中身
+let latestImageId = null; // 最後に更新された画像
+let isInitialLoad = true; // 初回起動時のフラグ
+const animationSecond = 10; // 画像1枚あたりの表示秒数
 
-const loader = document.querySelector(".loader");
-const scroller = document.querySelector(".scroller");
-const scrollerInner = document.querySelector(".scroller-inner");
-let latestImageId = null;
-let isInitialLoad = true;
-
-const animationSecond = 10;
-
+// インジケータの表示関数
 function showLoader() {
   loader.classList.remove("hidden");
 }
 
+// インジケータの非表示関数
 function hideLoader() {
   loader.classList.add("hidden");
 }
 
+// 画像データを更新日時の降順で並べ替えたクエリ
 const q = query(collection(db, "images"), orderBy("updatedAt", "desc"));
 
-// async function loadInitialImages() {
-//   console.log("Loading initial images...");
-//   try {
-//     const querySnapshot = await getDocs(q);
-
-//     querySnapshot.forEach(doc => {
-//       const docData = doc.data();
-//       addImageToScroller(docData.url, doc.id);
-//     });
-
-//     await updateAnimation();
-//     console.log("Initial images loaded successfully.");
-//   } catch (error) {
-//     console.error("Error loading initial images: ", error);
-//   }
-// }
-
+// 画像をドキュメントへ追加する関数
 async function addImageByDoc(docData, id) {
   try {
     const path = docData.path;
@@ -102,6 +87,7 @@ async function addImageByDoc(docData, id) {
   }
 }
 
+// firestore の更新を監視する関数
 async function startListeningForChanges() {
   onSnapshot(
     q,
@@ -154,6 +140,7 @@ async function startListeningForChanges() {
   );
 }
 
+// 画像をスクロールの中に追加する関数
 function addImageToScroller(url, id) {
   const img = document.createElement("img");
   img.src = url;
@@ -162,6 +149,7 @@ function addImageToScroller(url, id) {
   scrollerInner.appendChild(img);
 }
 
+// 画像をスクロールの中から消去する関数
 function removeImageFromScroller(id) {
   const imgToRemove = scrollerInner.querySelectorAll(`[data-id="${id}"]`);
   if (imgToRemove) {
@@ -169,6 +157,7 @@ function removeImageFromScroller(id) {
   }
 }
 
+// アニメーションを更新する関数
 async function updateAnimation() {
   const allImagesInDom = Array.from(scrollerInner.children);
 
@@ -235,6 +224,7 @@ async function updateAnimation() {
   hideLoader();
 }
 
+// onCall の synchronizeStorageAndFirestore を呼ぶ準備
 const synchronize = httpsCallable(functions, "synchronizeStorageAndFirestore");
 async function runSynchronization() {
   showLoader();
@@ -246,72 +236,8 @@ async function runSynchronization() {
     console.error("Synchronization failed:", error);
   }
 }
+
+// firestore を storage に同期させてから監視
 runSynchronization().then(() => {
   startListeningForChanges();
 });
-// async function initializeImageScroller() {
-//   console.log("Getting Image URLs...");
-//   try {
-//     const result = await getImageUrls();
-//     const imageUrls = result.data;
-
-//     if (!imageUrls || imageUrls.length == 0) {
-//       console.warn("NO IMAGES");
-//       scrollerInner.textContent = "No Image";
-//       return;
-//     }
-
-//     console.log(`Success!!: ${imageUrls.length} images`);
-//     scrollerInner.innerHTML = "";
-
-//     const originalFragment = document.createDocumentFragment();
-//     const imageElements = imageUrls.map(url => {
-//       const img = document.createElement("img");
-//       img.src = url;
-//       img.alt = "gallery image";
-//       originalFragment.appendChild(img);
-//       return img;
-//     });
-
-//     scrollerInner.appendChild(originalFragment);
-
-//     const promises = imageElements.map(
-//       img => new Promise(resolve => (img.onload = resolve))
-//     );
-//     await Promise.all(promises);
-
-//     while (scrollerInner.scrollWidth < scroller.clientWidth) {
-//       console.log("Content is narrower than scroller. Duplicationg...");
-//       const fragment = document.createDocumentFragment();
-//       const newImageElements = imageUrls.map(url => {
-//         const img = document.createElement("img");
-//         img.src = url;
-//         img.alt = "gallery image";
-//         fragment.appendChild(img);
-//         return img;
-//       });
-
-//       const newPromises = newImageElements.map(
-//         img => new Promise(resolve => (img.onload = resolve))
-//       );
-
-//       scrollerInner.appendChild(fragment);
-
-//       await Promise.all(newPromises);
-//     }
-
-//     const currentImages = Array.from(scrollerInner.children);
-//     currentImages.forEach(img => {
-//       scrollerInner.appendChild(img.cloneNode(true));
-//     });
-
-//     const finalImageCount = scrollerInner.children.length / 2;
-//     const animationDuration = finalImageCount * animationSecond;
-//     scrollerInner.style.animationDuration = `${animationDuration}s`;
-//   } catch (error) {
-//     console.error("Error: Cannot get Image URLs", error);
-//     scrollerInner.textContent = "False get Images";
-//   }
-// }
-
-// document.addEventListener("DOMContentLoaded", initializeImageScroller);

@@ -29,8 +29,8 @@ h1 {
 
 /* スピナー自体のスタイル */
 .loader .spinner {
-  border: 6px solid #f3f3f3; /* 薄い灰色 */
-  border-top: 6px solid #3498db; /* 青色 */
+  border: 6px solid #f3f3f3;
+  border-top: 6px solid #3498db;
   border-radius: 50%;
   width: 50px;
   height: 50px;
@@ -78,7 +78,6 @@ h1 {
   display: flex; /* 画像を横並びにする */
   gap: 1rem; /* 画像間のスペース */
   padding-block: 1rem;
-  /* アニメーションを適用: アニメーション名 時間 速度 無限ループ */
   animation: scroll infinite linear;
 }
 
@@ -88,11 +87,7 @@ h1 {
     transform: translateX(0);
   }
   to {
-    /*
-         * -50%動かすのがポイント。
-         * 画像セットを2つ並べているため、ちょうど1セット分が
-         * 左に移動した時点で瞬時に先頭に戻り、ループして見える。
-         */
+    /* 50% ずつ移動させる */
     transform: translateX(-50%);
   }
 }
