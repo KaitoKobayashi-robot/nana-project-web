@@ -57,6 +57,7 @@ const loader = document.querySelector(".loader");
 const scroller = document.querySelector(".scroller");
 const scrollerInner = document.querySelector(".scroller-inner");
 let latestImageId = null;
+let isInitialLoad = true;
 
 const animationSecond = 10;
 
@@ -105,11 +106,24 @@ async function startListeningForChanges() {
   onSnapshot(
     q,
     async snapshot => {
-      showLoader();
-      console.log("Firestore change detected. Showing loader.");
+      if (!isInitialLoad) {
+        showLoader();
+        console.log("Firestore change detected. Show Loader...");
+      } else {
+        console.log("Firestore initialize...");
+      }
+
+      if (isInitialLoad && snapshot.empty) {
+        console.log("No initial images found.");
+        hideLoader();
+        isInitialLoad = false;
+        return;
+      }
 
       if (snapshot.docs.length > 0) {
         latestImageId = snapshot.docs[0].id;
+      } else {
+        latestImageId = null;
       }
 
       const changes = snapshot.docChanges();
@@ -131,6 +145,7 @@ async function startListeningForChanges() {
 
       await updateAnimation();
       console.log("Animation updated. Hiding loader.");
+      isInitialLoad = false;
     },
     error => {
       console.error("Error listening to Firestore: ", error);
@@ -180,6 +195,7 @@ async function updateAnimation() {
   if (originalImages.length === 0) {
     scrollerInner.style.animation = "none";
     scrollerInner.innerHTML = "";
+    hideLoader();
     return;
   }
 
