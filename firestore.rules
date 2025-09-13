@@ -2,8 +2,16 @@ rules_version = '2';
 
 service cloud.firestore {
   match /databases/{database}/documents {
-    match /{document=**} {
-      allow read, write;
+    match /images/{imageId} {
+      // 読み取りは誰でも許可
+      allow read: if true;
+      // 書き込みは誰にも許可しない
+      allow write: if false;
+    }
+    // metadataコレクションのドキュメントに対しても同様
+    match /metadata/{docId} {
+       allow read: if true;
+       allow write: if false;
     }
   }
 }
