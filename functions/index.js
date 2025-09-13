@@ -66,14 +66,18 @@ exports.onImageUpload = onObjectFinalized(async event => {
     await ensureDownloadToken(file);
 
     const id = filePath.replace(/\//g, "_");
-    await admin.firestore().collection("images").doc(id).set(
-      {
-        path: filePath,
-        // url: signedUrl,
-        updatedAt: admin.firestore.FieldValue.serverTimestamp(),
-      },
-      { merge: true }
-    );
+    await admin
+      .firestore()
+      .collection("images")
+      .doc(id)
+      .set(
+        {
+          path: filePath,
+          // url: signedUrl,
+          updatedAt: new Date(event.data.updated),
+        },
+        { merge: true }
+      );
 
     logger.info(`Updated Firestore for ${filePath}`);
   } catch (e) {
@@ -102,12 +106,19 @@ exports.onImageDelete = onObjectDeleted(async event => {
 // 本番StorageのFOLDERを走査して Firestore を同期
 exports.synchronizeStorageAndFirestore = onCall(async req => {
   try {
+    const db = admin.firestore();
+    const col = db.collection("images");
+    const metadataDocRef = db.collection("metadata").doc("lastSync");
+
+    const metadataDoc = await metadataDocRef.get();
+    const lastSync = metadataDoc.exists
+      ? metadataDoc.data().timestamp.toDate()
+      : new Date(0);
+
     const [files] = await bucket.getFiles({ prefix: FOLDER });
 
     console.log("Get file:", files);
 
-    const db = admin.firestore();
-    const col = db.collection("images");
     const batch = db.batch();
     const seen = new Set();
 
@@ -115,28 +126,27 @@ exports.synchronizeStorageAndFirestore = onCall(async req => {
 
     for (const f of files) {
       if (f.name.endsWith("/")) continue;
-      const docId = f.name.replace(/\//g, "_");
-      seen.add(docId);
 
-      // 既存docを読むのは避け、直接 upsert（高速）
-      // const [url] = await f.getSignedUrl({
-      //   action: "read",
-      //   expires: Date.now() + 365 * 24 * 60 * 60 * 1000,
-      // });
+      const [metadata] = await f.getMetadata();
+      const updatedTime = new Date(metadata.updated);
 
-      await ensureDownloadToken(f);
+      if (updatedTime > lastSync) {
+        const docId = f.name.replace(/\//g, "_");
+        seen.add(docId);
 
-      batch.set(
-        col.doc(docId),
-        {
-          path: f.name,
-          // url,
-          updatedAt: admin.firestore.FieldValue.serverTimestamp(),
-        },
-        { merge: true }
-      );
-      admin.firestore.FieldValue.serverTimestamp();
-      added++;
+        await ensureDownloadToken(f);
+
+        batch.set(
+          col.doc(docId),
+          {
+            path: f.name,
+            // url,
+            updatedAt: updatedTime,
+          },
+          { merge: true }
+        );
+        added++;
+      }
     }
 
     // 余剰docの削除
@@ -147,6 +157,10 @@ exports.synchronizeStorageAndFirestore = onCall(async req => {
         batch.delete(doc.ref);
         deleted++;
       }
+    });
+
+    batch.set(metadataDocRef, {
+      timestamp: admin.firestore.FieldValue.serverTimestamp(),
     });
 
     await batch.commit();
