@@ -119,21 +119,31 @@ exports.synchronizeStorageAndFirestore = onCall(async req => {
 
     console.log("Get file:", files);
 
-    const batch = db.batch();
-    const seen = new Set();
+    const storageDocIds = new Set();
+    files.forEach(f => {
+      if (!f.name.endsWith("/")) {
+        storageDocIds.add(f.name.replace(/\//g, "_"));
+      }
+    });
 
+    const firestoreSnapshot = await col.get();
+    const firestoreDocIds = new Set();
+    firestoreSnapshot.forEach(doc => {
+      firestoreDocIds.add(doc.id);
+    });
+
+    const batch = db.batch();
     let added = 0;
+    let deleted = 0;
 
     for (const f of files) {
       if (f.name.endsWith("/")) continue;
 
+      const docId = f.name.replace(/\//g, "_");
       const [metadata] = await f.getMetadata();
       const updatedTime = new Date(metadata.updated);
 
-      if (updatedTime > lastSync) {
-        const docId = f.name.replace(/\//g, "_");
-        seen.add(docId);
-
+      if (updatedTime > lastSync || !firestoreDocIds.has(docId)) {
         await ensureDownloadToken(f);
 
         batch.set(
@@ -149,11 +159,8 @@ exports.synchronizeStorageAndFirestore = onCall(async req => {
       }
     }
 
-    // 余剰docの削除
-    const snap = await col.get();
-    let deleted = 0;
-    snap.forEach(doc => {
-      if (!seen.has(doc.id)) {
+    firestoreSnapshot.forEach(doc => {
+      if (!storageDocIds.has(doc.id)) {
         batch.delete(doc.ref);
         deleted++;
       }
